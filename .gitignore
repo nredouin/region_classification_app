@@ -1,0 +1,18 @@
+# Not needed for deployment
+config/
+data_loader.py
+download_simulation_images.py
+ids_to_get_simulation_from.txt
+unified_100_minwomen_50_s1r_0.0.csv
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+venv/
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db
