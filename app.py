@@ -134,7 +134,8 @@ def get_result_images(region):
     region_dir = os.path.join(RESULTS_DIR, str(region))
     if not os.path.exists(region_dir):
         return []
-    return sorted(f for f in os.listdir(region_dir) if f.endswith(".jpg"))
+    files = [f for f in os.listdir(region_dir) if f.endswith(".jpg")]
+    return sorted(files, key=lambda f: int(f.rsplit("_", 1)[-1].split(".")[0]))
 
 
 # ── UI helpers ───────────────────────────────────────────────────────────────
