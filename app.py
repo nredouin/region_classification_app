@@ -13,7 +13,7 @@ st.set_page_config(
 
 REGIONS = list(range(1, 188))
 SWATCHES_DIR = "data/CT_individual_swatches_V2"
-SIMULATION_DIR = "data/simulation"
+RESULTS_DIR = "data/Results_CT_local_for_app"
 TOTAL = len(REGIONS)
 
 
@@ -39,8 +39,8 @@ def load_region_inputs(region):
     if st.session_state.loaded_region == region:
         return
     saved = st.session_state.responses.get(region, {})
-    st.session_state.fr1_val = saved.get("freflect1", "")
-    st.session_state.fr2_val = saved.get("freflect2", "")
+    st.session_state.fr1_val = saved.get("Reflet 1", "")
+    st.session_state.fr2_val = saved.get("Reflet 2", "")
     st.session_state.fam_val = saved.get("famille", "")
     st.session_state.loaded_region = region
 
@@ -51,8 +51,8 @@ def save_current(region):
     fr2 = st.session_state.get("fr2_val", "")
     fam = st.session_state.get("fam_val", "")
     st.session_state.responses[region] = {
-        "freflect1": fr1,
-        "freflect2": fr2,
+        "Reflet 1": fr1,
+        "Reflet 2": fr2,
         "famille": fam,
     }
     for val, hist_key in [
@@ -78,8 +78,8 @@ def load_from_excel(file):
             region = int(row["Region"])
         except (ValueError, KeyError):
             continue
-        fr1 = "" if pd.isna(row.get("Freflect 1")) else str(row["Freflect 1"]).strip()
-        fr2 = "" if pd.isna(row.get("Freflect 2")) else str(row["Freflect 2"]).strip()
+        fr1 = "" if pd.isna(row.get("Reflet 1")) else str(row["Reflet 1"]).strip()
+        fr2 = "" if pd.isna(row.get("Reflet 2")) else str(row["Reflet 2"]).strip()
         fam = "" if pd.isna(row.get("Famille Lp Name")) else str(row["Famille Lp Name"]).strip()
         # Treat literal "nan" strings from Excel as empty
         fr1 = "" if fr1 == "nan" else fr1
@@ -87,7 +87,7 @@ def load_from_excel(file):
         fam = "" if fam == "nan" else fam
 
         if fr1 or fr2 or fam:
-            responses[region] = {"freflect1": fr1, "freflect2": fr2, "famille": fam}
+            responses[region] = {"Reflet 1": fr1, "Reflet 2": fr2, "famille": fam}
             for val, hist in [(fr1, fr1_hist), (fr2, fr2_hist), (fam, fam_hist)]:
                 if val and val not in hist:
                     hist.append(val)
@@ -112,8 +112,8 @@ def build_excel():
     """Build Excel bytes including the live (unsaved) values for the current region."""
     current_region = REGIONS[st.session_state.current_idx]
     live = {
-        "freflect1": st.session_state.get("fr1_val", ""),
-        "freflect2": st.session_state.get("fr2_val", ""),
+        "Reflet 1": st.session_state.get("fr1_val", ""),
+        "Reflet 2": st.session_state.get("fr2_val", ""),
         "famille": st.session_state.get("fam_val", ""),
     }
     rows = []
@@ -121,8 +121,8 @@ def build_excel():
         resp = live if r == current_region else st.session_state.responses.get(r, {})
         rows.append({
             "Region": r,
-            "Freflect 1": resp.get("freflect1", ""),
-            "Freflect 2": resp.get("freflect2", ""),
+            "Reflet 1": resp.get("Reflet 1", ""),
+            "Reflet 2": resp.get("Reflet 2", ""),
             "Famille Lp Name": resp.get("famille", ""),
         })
     buf = BytesIO()
@@ -130,8 +130,8 @@ def build_excel():
     return buf.getvalue()
 
 
-def get_simulation_images(region):
-    region_dir = os.path.join(SIMULATION_DIR, str(region))
+def get_result_images(region):
+    region_dir = os.path.join(RESULTS_DIR, str(region))
     if not os.path.exists(region_dir):
         return []
     return sorted(f for f in os.listdir(region_dir) if f.endswith(".jpg"))
@@ -175,7 +175,7 @@ def sidebar_download():
 
 def show_landing():
     st.title("Region Classification")
-    st.markdown("Classify all 187 hair colour regions by assigning Freflect values and a Famille Lp name.")
+    st.markdown("Classify all 187 hair colour regions by assigning Reflet values and a Famille Lp name.")
     st.divider()
 
     col_fresh, col_resume = st.columns(2)
@@ -262,17 +262,17 @@ def show_app():
             st.warning("No swatch image found.")
 
     with sim_col:
-        st.markdown("**Simulation Images**")
-        sim_files = get_simulation_images(region)
+        st.markdown("**Result Images**")
+        sim_files = get_result_images(region)
         if sim_files:
             n_cols = min(len(sim_files), 5)
             img_cols = st.columns(n_cols)
             for i, fname in enumerate(sim_files):
-                img_path = os.path.join(SIMULATION_DIR, str(region), fname)
-                resp_id = fname.replace(f"{region}_", "").replace(".jpg", "")
-                img_cols[i % n_cols].image(img_path, caption=resp_id, use_container_width=True)
+                img_path = os.path.join(RESULTS_DIR, str(region), fname)
+                caption = fname.replace(f"CT_{region}_", "").replace(".jpg", "")
+                img_cols[i % n_cols].image(img_path, caption=caption, use_container_width=True)
         else:
-            st.info("No simulation images for this region.")
+            st.info("No result images for this region.")
 
     st.divider()
 
@@ -280,14 +280,14 @@ def show_app():
     in1, in2, in3 = st.columns(3)
 
     with in1:
-        st.markdown("**Freflect 1**")
+        st.markdown("**Reflet 1**")
         suggestion_buttons("fr1_history", "fr1_val")
-        st.text_input("Freflect 1", key="fr1_val", label_visibility="collapsed")
+        st.text_input("Reflet 1", key="fr1_val", label_visibility="collapsed")
 
     with in2:
-        st.markdown("**Freflect 2**")
+        st.markdown("**Reflet 2**")
         suggestion_buttons("fr2_history", "fr2_val")
-        st.text_input("Freflect 2", key="fr2_val", label_visibility="collapsed")
+        st.text_input("Reflet 2", key="fr2_val", label_visibility="collapsed")
 
     with in3:
         st.markdown("**Famille Lp Name**")

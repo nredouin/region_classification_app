@@ -1,3 +1,6 @@
+# Image data not tracked in git
+data/simulation/
+
 # Not needed for deployment
 config/
 data_loader.py
