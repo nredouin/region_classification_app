@@ -40,6 +40,11 @@ TONE_RANGES = {
     "DARK": (1, 4),     # darker models
 }
 
+FAMILLE_LP_OPTIONS = [
+    "", "ASH", "COOL BROWN", "COPPER", "FONDAMENTALE",
+    "GOLD", "IRIDESCENT", "MOCHA", "RED/ACAJOU", "WARM BROWN",
+]
+
 
 # ── State ────────────────────────────────────────────────────────────────────
 
@@ -50,6 +55,7 @@ def init_state():
         "responses": {},
         "fr1_history": [],
         "fr2_history": [],
+        "fam_val": "",
         "loaded_region": None,
     }
     for k, v in defaults.items():
@@ -64,6 +70,7 @@ def load_region_inputs(region):
     saved = st.session_state.responses.get(region, {})
     st.session_state.fr1_val = saved.get("Reflet 1", "")
     st.session_state.fr2_val = saved.get("Reflet 2", "")
+    st.session_state.fam_val = saved.get("famille", "")
     st.session_state.loaded_region = region
 
 
@@ -71,9 +78,11 @@ def save_current(region):
     """Persist current form values and update suggestion histories."""
     fr1 = st.session_state.get("fr1_val", "")
     fr2 = st.session_state.get("fr2_val", "")
+    fam = st.session_state.get("fam_val", "")
     st.session_state.responses[region] = {
         "Reflet 1": fr1,
         "Reflet 2": fr2,
+        "famille": fam,
     }
     for val, hist_key in [(fr1, "fr1_history"), (fr2, "fr2_history")]:
         if val and val not in st.session_state[hist_key]:
@@ -107,11 +116,13 @@ def load_from_excel(file):
             continue
         fr1 = "" if pd.isna(row.get("Reflet 1")) else str(row["Reflet 1"]).strip()
         fr2 = "" if pd.isna(row.get("Reflet 2")) else str(row["Reflet 2"]).strip()
+        fam = "" if pd.isna(row.get("Famille Lp Name")) else str(row["Famille Lp Name"]).strip()
         fr1 = "" if fr1 == "nan" else fr1
         fr2 = "" if fr2 == "nan" else fr2
+        fam = "" if fam == "nan" else fam
 
-        if fr1 or fr2:
-            responses[region] = {"Reflet 1": fr1, "Reflet 2": fr2}
+        if fr1 or fr2 or fam:
+            responses[region] = {"Reflet 1": fr1, "Reflet 2": fr2, "famille": fam}
             for val, hist in [(fr1, fr1_hist), (fr2, fr2_hist)]:
                 if val and val not in hist:
                     hist.append(val)
@@ -136,6 +147,7 @@ def build_excel():
     live = {
         "Reflet 1": st.session_state.get("fr1_val", ""),
         "Reflet 2": st.session_state.get("fr2_val", ""),
+        "famille": st.session_state.get("fam_val", ""),
     }
     rows = []
     for r in REGIONS:
@@ -144,6 +156,7 @@ def build_excel():
             "Region": r,
             "Reflet 1": resp.get("Reflet 1", ""),
             "Reflet 2": resp.get("Reflet 2", ""),
+            "Famille Lp Name": resp.get("famille", ""),
         })
     buf = BytesIO()
     pd.DataFrame(rows).to_excel(buf, index=False)
@@ -187,6 +200,7 @@ def sidebar_download():
     has_live = any([
         st.session_state.get("fr1_val", ""),
         st.session_state.get("fr2_val", ""),
+        st.session_state.get("fam_val", ""),
     ])
     if filled > 0 or has_live:
         st.download_button(
@@ -331,7 +345,7 @@ def show_app():
     st.divider()
 
     # ── Inputs ───────────────────────────────────────────────────────────────
-    in1, in2 = st.columns(2)
+    in1, in2, in3 = st.columns(3)
 
     with in1:
         st.markdown("**Reflet 1**")
@@ -342,6 +356,18 @@ def show_app():
         st.markdown("**Reflet 2**")
         suggestion_buttons("fr2_history", "fr2_val")
         st.text_input("Reflet 2", key="fr2_val", label_visibility="collapsed")
+
+    with in3:
+        st.markdown("**Famille Lp Name**")
+        current_fam = st.session_state.get("fam_val", "")
+        fam_index = FAMILLE_LP_OPTIONS.index(current_fam) if current_fam in FAMILLE_LP_OPTIONS else 0
+        selected = st.selectbox(
+            "Famille Lp Name",
+            FAMILLE_LP_OPTIONS,
+            index=fam_index,
+            label_visibility="collapsed",
+        )
+        st.session_state.fam_val = selected
 
     # ── Navigation ───────────────────────────────────────────────────────────
     st.divider()
