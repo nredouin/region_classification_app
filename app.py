@@ -11,18 +11,28 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Force light-grey background regardless of user's system theme
+# Force grey background regardless of user's system theme
 st.markdown("""
 <style>
-    .stApp { background-color: #e2e2e2 !important; }
+    .stApp { background-color: #c8c8c8 !important; }
     section[data-testid="stSidebar"],
     section[data-testid="stSidebar"] > div:first-child {
-        background-color: #d6d6d6 !important;
+        background-color: #bebebe !important;
     }
     /* Ensure readable dark text on light background */
     .stApp, .stMarkdown, .stMarkdown p, .stMarkdown h1,
     .stMarkdown h2, .stMarkdown h3, label {
         color: #1a1a1a !important;
+    }
+    /* White buttons with dark text */
+    .stButton > button {
+        background-color: #ffffff !important;
+        color: #1a1a1a !important;
+        border: 1px solid #aaaaaa !important;
+    }
+    .stButton > button:hover {
+        background-color: #f0f0f0 !important;
+        border: 1px solid #888888 !important;
     }
 </style>
 """, unsafe_allow_html=True)
