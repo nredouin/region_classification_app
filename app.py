@@ -37,7 +37,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-REGIONS = list(range(1, 188))
+REGIONS = list(range(1, 82))
 SWATCHES_DIR = "data/output_region_swatches"
 RESULTS_DIR = "data/Results_CT_local_for_app_IN"
 SKINMATCH_EXCEL = "data/SkinMatch classification.xlsx"
@@ -57,6 +57,10 @@ FAMILLE_LP_OPTIONS = [
 
 
 # ── State ────────────────────────────────────────────────────────────────────
+
+def is_filled(resp):
+    return any(resp.get(k, "").strip() for k in ("Reflet 1", "Reflet 2", "famille", "dmi"))
+
 
 def init_state():
     defaults = {
@@ -216,7 +220,7 @@ def suggestion_buttons(hist_key, input_key):
 
 def sidebar_download():
     """Download button that always reflects the current live state."""
-    filled = len(st.session_state.responses)
+    filled = sum(1 for r in REGIONS if is_filled(st.session_state.responses.get(r, {})))
     has_live = any([
         st.session_state.get("fr1_val", ""),
         st.session_state.get("fr2_val", ""),
@@ -276,7 +280,7 @@ def show_app():
     # ── Sidebar ──────────────────────────────────────────────────────────────
     with st.sidebar:
         st.markdown("### Progress")
-        filled = len(st.session_state.responses)
+        filled = sum(1 for r in REGIONS if is_filled(st.session_state.responses.get(r, {})))
         st.progress(filled / TOTAL, text=f"{filled} / {TOTAL} regions filled")
 
         st.markdown("### Jump to region")
@@ -293,7 +297,7 @@ def show_app():
             st.session_state.loaded_region = None
             st.rerun()
 
-        unfilled = [r for r in REGIONS if r not in st.session_state.responses]
+        unfilled = [r for r in REGIONS if not is_filled(st.session_state.responses.get(r, {}))]
         st.markdown(f"### Regions left ({len(unfilled)})")
         if unfilled:
             left_pick = st.selectbox(
