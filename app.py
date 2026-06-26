@@ -190,10 +190,12 @@ def get_result_images(region, tone=None):
 
     if tone and tone in TONE_RANGES:
         lo, hi = TONE_RANGES[tone]
-        all_files = [
+        filtered = [
             f for f in all_files
             if lo <= int(f.rsplit("_", 1)[-1].split(".")[0]) <= hi
         ]
+        if filtered:
+            all_files = filtered
 
     return all_files
 
@@ -356,7 +358,7 @@ def show_app():
             img_cols = st.columns(n_cols)
             for i, fname in enumerate(sim_files):
                 img_path = os.path.join(RESULTS_DIR, str(region), fname)
-                caption = fname.replace(f"CT_{region}_", "").replace(".jpg", "")
+                caption = fname.replace(f"CT_{region}_", "").replace(f"{region}_", "").replace(".jpg", "")
                 img_cols[i % n_cols].image(img_path, caption=caption, use_container_width=True)
         else:
             st.info("No result images for this region.")
