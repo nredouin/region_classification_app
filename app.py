@@ -38,8 +38,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 REGIONS = list(range(1, 188))
-SWATCHES_DIR = "data/CT_individual_swatches_V2"
-RESULTS_DIR = "data/Results_CT_local_for_app"
+SWATCHES_DIR = "data/output_region_swatches"
+RESULTS_DIR = "data/Results_CT_local_for_app_IN"
 SKINMATCH_EXCEL = "data/SkinMatch classification.xlsx"
 TOTAL = len(REGIONS)
 
@@ -342,7 +342,7 @@ def show_app():
 
     with swatch_col:
         st.markdown("**CT Swatch**")
-        swatch_path = os.path.join(SWATCHES_DIR, f"CT_{region}.jpg")
+        swatch_path = os.path.join(SWATCHES_DIR, f"{region}.jpg")
         if os.path.exists(swatch_path):
             st.image(swatch_path, use_container_width=True)
         else:
