@@ -409,14 +409,25 @@ with tab2:
 
 with tab3:
     st.header("Deleted Regions")
-    st.caption(f"{len(df_deleted)} regions where both Reflet 1 and Reflet 2 are 0.0.")
+    st.caption(
+        f"{len(df_deleted)} regions where both Reflet 1 and Reflet 2 are 0.0. "
+        "Assign new Reflet values to restore a region to the active pool."
+    )
 
-    COLS3 = 10
+    COLS3 = COLS_PER_ROW
     for chunk_start in range(0, len(df_deleted), COLS3):
         chunk = df_deleted.iloc[chunk_start : chunk_start + COLS3]
         cols = st.columns(COLS3)
         for col, (_, r) in zip(cols, chunk.iterrows()):
             region = int(r["Region"])
+            cur_r1 = str(r["Reflet 1"])
+            cur_r2 = str(r["Reflet 2"])
+            r1_idx = REFLET_OPTIONS.index(cur_r1) if cur_r1 in REFLET_OPTIONS else 0
+            r2_idx = REFLET_OPTIONS.index(cur_r2) if cur_r2 in REFLET_OPTIONS else 0
             with col:
                 show_swatch(region, 90)
                 st.caption(f"Region {region}")
+                st.selectbox("Reflet 1", REFLET_OPTIONS, index=r1_idx,
+                             key=f"r1_{region}", on_change=on_r1_change, args=(region,))
+                st.selectbox("Reflet 2", REFLET_OPTIONS, index=r2_idx,
+                             key=f"r2_{region}", on_change=on_r2_change, args=(region,))
