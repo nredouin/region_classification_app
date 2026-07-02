@@ -115,6 +115,23 @@ def on_r3_change(region):
     save_df()
 
 
+def on_grp_dmi_change(r1, r2):
+    val = st.session_state[f"grp_dmi_{r1}_{r2}"]
+    if val in ("—", "✏️ New..."):
+        return
+    mask = (st.session_state.df["Reflet 1"] == r1) & (st.session_state.df["Reflet 2"] == r2)
+    st.session_state.df.loc[mask, "DMI Name"] = val
+    save_df()
+
+
+def on_grp_dmi_new_change(r1, r2):
+    val = st.session_state.get(f"grp_dmi_new_{r1}_{r2}", "").strip()
+    if not val:
+        return
+    mask = (st.session_state.df["Reflet 1"] == r1) & (st.session_state.df["Reflet 2"] == r2)
+    st.session_state.df.loc[mask, "DMI Name"] = val
+    save_df()
+
 
 # ── Session state init ────────────────────────────────────────────────────────
 
@@ -196,32 +213,26 @@ with tab1:
 
         # ── Group-level DMI assignment ────────────────────────────────────────
         dmi_opts_grp = ["—"] + get_dmi_options() + ["✏️ New..."]
-        ga, gb, gc, _ = st.columns([3, 3, 2, 4])
+        ga, gb, _ = st.columns([3, 3, 6])
         with ga:
             grp_dmi_sel = st.selectbox(
                 "DMI for group",
                 options=dmi_opts_grp,
                 key=f"grp_dmi_{r1}_{r2}",
                 label_visibility="collapsed",
+                on_change=on_grp_dmi_change,
+                args=(r1, r2),
             )
-        new_grp_dmi = ""
         with gb:
             if grp_dmi_sel == "✏️ New...":
-                new_grp_dmi = st.text_input(
+                st.text_input(
                     "New DMI",
                     key=f"grp_dmi_new_{r1}_{r2}",
                     label_visibility="collapsed",
-                    placeholder="New DMI name...",
+                    placeholder="Type new DMI name and press Enter…",
+                    on_change=on_grp_dmi_new_change,
+                    args=(r1, r2),
                 )
-        with gc:
-            if st.button("Apply to group", key=f"grp_apply_{r1}_{r2}"):
-                assign = new_grp_dmi if grp_dmi_sel == "✏️ New..." else ("" if grp_dmi_sel == "—" else grp_dmi_sel)
-                for _, row in subset.iterrows():
-                    reg = int(row["Region"])
-                    idx = st.session_state.df[st.session_state.df["Region"] == reg].index[0]
-                    st.session_state.df.at[idx, "DMI Name"] = assign
-                save_df()
-                st.rerun()
 
         st.markdown("<div style='margin-bottom:4px;'></div>", unsafe_allow_html=True)
 
