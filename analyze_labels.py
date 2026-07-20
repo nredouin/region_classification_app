@@ -12,7 +12,6 @@ REF_SIZE = 75
 COLS_PER_ROW = 6
 
 REFLET_OPTIONS = ["0.0", "1.0", "2.0", "3.0", "4.0", "5.0", "6.0", "7.0", "8.0", "Fonda"]
-REFLET3_OPTIONS = ["—"] + REFLET_OPTIONS
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -28,23 +27,21 @@ def clean_df(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df["Reflet 1"] = df["Reflet 1"].astype(str).str.strip()
     df["Reflet 2"] = df["Reflet 2"].astype(str).str.strip()
-    if "Reflet 3" not in df.columns:
-        df["Reflet 3"] = "—"
-    else:
-        df["Reflet 3"] = df["Reflet 3"].fillna("—").astype(str).str.strip()
-        df.loc[df["Reflet 3"].isin(["nan", ""]), "Reflet 3"] = "—"
     if "DMI Name" not in df.columns:
         df["DMI Name"] = ""
     else:
         df["DMI Name"] = df["DMI Name"].fillna("").astype(str)
         df.loc[df["DMI Name"].isin(["nan", "None"]), "DMI Name"] = ""
+    if "Famille Lp Name" not in df.columns:
+        df["Famille Lp Name"] = ""
+    else:
+        df["Famille Lp Name"] = df["Famille Lp Name"].fillna("").astype(str)
+        df.loc[df["Famille Lp Name"].isin(["nan", "None"]), "Famille Lp Name"] = ""
     return df
 
 
 def save_df():
-    df_save = st.session_state.df.copy()
-    df_save["Reflet 3"] = df_save["Reflet 3"].replace("—", "")
-    df_save.to_excel(EXCEL_PATH, index=False)
+    st.session_state.df.to_excel(EXCEL_PATH, index=False)
 
 
 def sorted_group_keys(source_df: pd.DataFrame) -> list:
@@ -82,9 +79,22 @@ def show_swatch(region: int, size: int):
         )
 
 
+def swatch_caption(row) -> str:
+    dmi = str(row.get("DMI Name", "")).strip()
+    if dmi and dmi not in ("", "nan", "None"):
+        return dmi
+    return ""
+
+
 def get_dmi_options() -> list:
     names = st.session_state.df["DMI Name"].unique()
     return sorted({str(n) for n in names if n and str(n) not in ("", "nan", "None")})
+
+
+def get_group_dmi(subset: pd.DataFrame) -> str:
+    """Return the DMI name shared by the group, or '—' if none/mixed."""
+    vals = [v for v in subset["DMI Name"].unique() if v and v not in ("", "nan", "None")]
+    return vals[0] if len(vals) == 1 else "—"
 
 
 # ── Callbacks ─────────────────────────────────────────────────────────────────
@@ -104,14 +114,6 @@ def on_r2_change(region):
     idx = df[df["Region"] == region].index[0]
     df.at[idx, "Reflet 2"] = new_val
     st.session_state.selected_regions.discard(region)
-    save_df()
-
-
-def on_r3_change(region):
-    new_val = st.session_state[f"r3_{region}"]
-    df = st.session_state.df
-    idx = df[df["Region"] == region].index[0]
-    df.at[idx, "Reflet 3"] = new_val
     save_df()
 
 
@@ -149,7 +151,9 @@ with st.sidebar:
     st.header("Import / Export")
 
     uploaded = st.file_uploader("Resume from exported Excel", type=["xlsx"])
-    if uploaded:
+    upload_id = f"{uploaded.name}_{uploaded.size}" if uploaded is not None else None
+    if uploaded is not None and st.session_state.get("_last_upload_id") != upload_id:
+        st.session_state["_last_upload_id"] = upload_id
         st.session_state.df = clean_df(pd.read_excel(uploaded))
         st.session_state.selected_regions = set()
         st.session_state.region_mapping = {}
@@ -159,10 +163,8 @@ with st.sidebar:
 
     st.divider()
 
-    df_exp = st.session_state.df.copy()
-    df_exp["Reflet 3"] = df_exp["Reflet 3"].replace("—", "")
     buf_exp = io.BytesIO()
-    df_exp.to_excel(buf_exp, index=False)
+    st.session_state.df.to_excel(buf_exp, index=False)
     buf_exp.seek(0)
     st.download_button(
         "⬇ Export current state",
@@ -188,7 +190,7 @@ with tab1:
     st.header("Step 1 — Select regions to keep")
     st.caption(
         f"{len(df_active)} active regions grouped by Reflet combination. "
-        "Edit R1 / R2 / R3 and DMI inline — all changes auto-save. "
+        "Edit R1 / R2 and DMI inline — all changes auto-save. "
         "Setting R1=0.0 and R2=0.0 moves a region to Deleted and resets its selection."
     )
 
@@ -204,6 +206,13 @@ with tab1:
 
     st.divider()
 
+    missing_dmi = df_active[df_active["DMI Name"].isin(["", "nan", "None"]) | (df_active["DMI Name"] == "")]
+    if not missing_dmi.empty:
+        st.warning(
+            f"{len(missing_dmi)} active region(s) have no DMI name: "
+            + ", ".join(str(r) for r in sorted(missing_dmi["Region"].tolist()))
+        )
+
     for r1, r2 in sorted_group_keys(df_active):
         subset = df_active[
             (df_active["Reflet 1"] == r1) & (df_active["Reflet 2"] == r2)
@@ -213,11 +222,15 @@ with tab1:
 
         # ── Group-level DMI assignment ────────────────────────────────────────
         dmi_opts_grp = ["—"] + get_dmi_options() + ["✏️ New..."]
+        current_grp_dmi = get_group_dmi(subset)
+        grp_dmi_idx = dmi_opts_grp.index(current_grp_dmi) if current_grp_dmi in dmi_opts_grp else 0
+
         ga, gb, _ = st.columns([3, 3, 6])
         with ga:
             grp_dmi_sel = st.selectbox(
                 "DMI for group",
                 options=dmi_opts_grp,
+                index=grp_dmi_idx,
                 key=f"grp_dmi_{r1}_{r2}",
                 label_visibility="collapsed",
                 on_change=on_grp_dmi_change,
@@ -246,11 +259,8 @@ with tab1:
 
                 cur_r1 = str(row["Reflet 1"])
                 cur_r2 = str(row["Reflet 2"])
-                cur_r3 = str(row.get("Reflet 3", "—"))
-
                 r1_idx = REFLET_OPTIONS.index(cur_r1) if cur_r1 in REFLET_OPTIONS else 0
                 r2_idx = REFLET_OPTIONS.index(cur_r2) if cur_r2 in REFLET_OPTIONS else 0
-                r3_idx = REFLET3_OPTIONS.index(cur_r3) if cur_r3 in REFLET3_OPTIONS else 0
 
                 with col:
                     show_swatch(region, SWATCH_SIZE)
@@ -267,12 +277,14 @@ with tab1:
                             st.session_state.selected_regions.add(region)
                         st.rerun()
 
+                    cap = swatch_caption(row)
+                    if cap:
+                        st.caption(cap)
+
                     st.selectbox("Reflet 1", REFLET_OPTIONS, index=r1_idx,
                                  key=f"r1_{region}", on_change=on_r1_change, args=(region,))
                     st.selectbox("Reflet 2", REFLET_OPTIONS, index=r2_idx,
                                  key=f"r2_{region}", on_change=on_r2_change, args=(region,))
-                    st.selectbox("Reflet 3 (opt)", REFLET3_OPTIONS, index=r3_idx,
-                                 key=f"r3_{region}", on_change=on_r3_change, args=(region,))
 
         st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
 
@@ -280,7 +292,7 @@ with tab1:
     kept_list = sorted(st.session_state.selected_regions)
     st.subheader(f"Kept so far: {len(kept_list)} region(s)")
     if kept_list:
-        show_cols = [c for c in ["Region", "Reflet 1", "Reflet 2", "Reflet 3", "DMI Name"]
+        show_cols = [c for c in ["Region", "Reflet 1", "Reflet 2", "Famille Lp Name", "DMI Name"]
                      if c in st.session_state.df.columns]
         st.dataframe(
             st.session_state.df[st.session_state.df["Region"].isin(kept_list)][show_cols]
@@ -331,9 +343,11 @@ with tab2:
             )
             ref_cols = st.columns(min(len(kept_options), COLS_PER_ROW))
             for col, kreg in zip(ref_cols, kept_options):
+                krow = df_active[df_active["Region"] == kreg].iloc[0]
                 with col:
                     show_swatch(kreg, REF_SIZE)
-                    st.caption(f"Region {kreg}")
+                    kcap = swatch_caption(krow)
+                    st.caption(f"Region {kreg}" + (f"\n{kcap}" if kcap else ""))
 
             st.markdown("<div style='margin-bottom:6px;'></div>", unsafe_allow_html=True)
 
@@ -345,9 +359,8 @@ with tab2:
                 lcol, rcol = st.columns([1, 5])
                 with lcol:
                     show_swatch(region, SWATCH_SIZE)
-                    r3_val = str(row.get("Reflet 3", "—"))
-                    r3_label = f" · R3:{r3_val}" if r3_val not in ("—", "nan", "") else ""
-                    st.caption(f"Region {region}{r3_label}")
+                    cap = swatch_caption(row)
+                    st.caption(f"Region {region}" + (f"\n{cap}" if cap else ""))
                 with rcol:
                     st.markdown(
                         "<div style='margin-top:30px;font-size:13px;color:#333;'>Most similar to:</div>",
@@ -369,7 +382,7 @@ with tab2:
 
         # Build two-sheet Excel
         kept_list2 = sorted(kept_set)
-        out_cols = [c for c in ["Region", "Reflet 1", "Reflet 2", "Reflet 3", "DMI Name"]
+        out_cols = [c for c in ["Region", "Reflet 1", "Reflet 2", "Famille Lp Name", "DMI Name"]
                     if c in st.session_state.df.columns]
         sheet1 = (
             st.session_state.df[st.session_state.df["Region"].isin(kept_list2)][out_cols]
@@ -388,20 +401,25 @@ with tab2:
                 "Reflet 2": lrow["Reflet 2"],
                 "Most Similar Kept Region": kept_reg,
             }
-            if "Reflet 3" in lrow.index:
-                entry["Reflet 3"] = lrow["Reflet 3"]
+            if "Famille Lp Name" in lrow.index:
+                entry["Famille Lp Name"] = lrow["Famille Lp Name"]
             if "DMI Name" in lrow.index:
                 entry["DMI Name"] = lrow["DMI Name"]
             sheet2_rows.append(entry)
 
         sheet2 = pd.DataFrame(sheet2_rows) if sheet2_rows else pd.DataFrame(
-            columns=["Region", "Reflet 1", "Reflet 2", "Reflet 3", "Most Similar Kept Region", "DMI Name"]
+            columns=["Region", "Reflet 1", "Reflet 2", "Most Similar Kept Region", "Famille Lp Name", "DMI Name"]
         )
+
+        del_cols = [c for c in ["Region", "Reflet 1", "Reflet 2", "Famille Lp Name", "DMI Name"]
+                    if c in st.session_state.df.columns]
+        sheet3 = df_deleted[del_cols].sort_values("Region") if not df_deleted.empty else pd.DataFrame(columns=del_cols)
 
         buf2 = io.BytesIO()
         with pd.ExcelWriter(buf2, engine="openpyxl") as writer:
             sheet1.to_excel(writer, sheet_name="Kept Regions", index=False)
             sheet2.to_excel(writer, sheet_name="Mapped Regions", index=False)
+            sheet3.to_excel(writer, sheet_name="Deleted Regions", index=False)
         buf2.seek(0)
 
         unmapped = len(left_df) - len(mapped)
@@ -437,7 +455,8 @@ with tab3:
             r2_idx = REFLET_OPTIONS.index(cur_r2) if cur_r2 in REFLET_OPTIONS else 0
             with col:
                 show_swatch(region, 90)
-                st.caption(f"Region {region}")
+                cap = swatch_caption(r)
+                st.caption(f"Region {region}" + (f"\n{cap}" if cap else ""))
                 st.selectbox("Reflet 1", REFLET_OPTIONS, index=r1_idx,
                              key=f"r1_{region}", on_change=on_r1_change, args=(region,))
                 st.selectbox("Reflet 2", REFLET_OPTIONS, index=r2_idx,
