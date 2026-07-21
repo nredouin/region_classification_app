@@ -5,7 +5,7 @@ from pathlib import Path
 
 st.set_page_config(page_title="India Region Label Analyzer", layout="wide")
 
-SWATCH_DIR = Path("data/output_region_swatches")
+SWATCH_DIR = Path("data/output_region_swatches_v4")
 EXCEL_PATH = "labeled_regions_in.xlsx"
 SWATCH_SIZE = 100
 REF_SIZE = 75

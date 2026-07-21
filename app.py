@@ -38,8 +38,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 REGIONS = list(range(1, 82))
-SWATCHES_DIR = "data/output_region_swatches"
-RESULTS_DIR = "data/Results_CT_local_for_app_IN"
+SWATCHES_DIR = "data/output_region_swatches_v4"
+RESULTS_DIR = "data/Results_CT_local_for_app_IN_v4"
 SKINMATCH_EXCEL = "data/SkinMatch classification.xlsx"
 TOTAL = len(REGIONS)
 
