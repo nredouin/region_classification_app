@@ -154,9 +154,32 @@ with st.sidebar:
     upload_id = f"{uploaded.name}_{uploaded.size}" if uploaded is not None else None
     if uploaded is not None and st.session_state.get("_last_upload_id") != upload_id:
         st.session_state["_last_upload_id"] = upload_id
-        st.session_state.df = clean_df(pd.read_excel(uploaded))
-        st.session_state.selected_regions = set()
-        st.session_state.region_mapping = {}
+        xl = pd.ExcelFile(uploaded)
+        if "Kept Regions" in xl.sheet_names:
+            # Multi-sheet file from Tab 2 download — reconstruct full state
+            kept_df = xl.parse("Kept Regions")
+            not_sel_df = xl.parse("Not Selected Regions") if "Not Selected Regions" in xl.sheet_names else pd.DataFrame()
+            deleted_df = xl.parse("Deleted Regions") if "Deleted Regions" in xl.sheet_names else pd.DataFrame()
+            mapped_df = xl.parse("Mapped Regions") if "Mapped Regions" in xl.sheet_names else pd.DataFrame()
+
+            full_df = pd.concat([kept_df, not_sel_df, deleted_df], ignore_index=True)
+            keep_cols = [c for c in ["Region", "Reflet 1", "Reflet 2", "Famille Lp Name", "DMI Name"] if c in full_df.columns]
+            st.session_state.df = clean_df(full_df[keep_cols])
+            st.session_state.selected_regions = set(kept_df["Region"].dropna().astype(int).tolist())
+
+            if not mapped_df.empty and "Region" in mapped_df.columns and "Most Similar Kept Region" in mapped_df.columns:
+                st.session_state.region_mapping = {
+                    int(row["Region"]): int(row["Most Similar Kept Region"])
+                    for _, row in mapped_df.iterrows()
+                    if pd.notna(row.get("Most Similar Kept Region"))
+                }
+            else:
+                st.session_state.region_mapping = {}
+        else:
+            # Single-sheet file from sidebar export — simple load, no selections restored
+            st.session_state.df = clean_df(xl.parse(xl.sheet_names[0]))
+            st.session_state.selected_regions = set()
+            st.session_state.region_mapping = {}
         save_df()
         st.success("File loaded — session reset.")
         st.rerun()
@@ -415,19 +438,25 @@ with tab2:
                     if c in st.session_state.df.columns]
         sheet3 = df_deleted[del_cols].sort_values("Region") if not df_deleted.empty else pd.DataFrame(columns=del_cols)
 
+        # Sheet 4: all active non-kept regions (including those whose Reflet group has no kept match)
+        not_sel_cols = [c for c in ["Region", "Reflet 1", "Reflet 2", "Famille Lp Name", "DMI Name"]
+                        if c in st.session_state.df.columns]
+        sheet4 = left_df[not_sel_cols].sort_values("Region")
+
         buf2 = io.BytesIO()
         with pd.ExcelWriter(buf2, engine="openpyxl") as writer:
             sheet1.to_excel(writer, sheet_name="Kept Regions", index=False)
             sheet2.to_excel(writer, sheet_name="Mapped Regions", index=False)
             sheet3.to_excel(writer, sheet_name="Deleted Regions", index=False)
+            sheet4.to_excel(writer, sheet_name="Not Selected Regions", index=False)
         buf2.seek(0)
 
         unmapped = len(left_df) - len(mapped)
         if unmapped:
-            st.info(f"{unmapped} region(s) with no kept match for their Reflet group are excluded from Sheet 2.")
+            st.info(f"{unmapped} region(s) with no kept match for their Reflet group are excluded from Sheet 2 but included in 'Not Selected Regions'.")
 
         st.download_button(
-            "⬇ Download Excel (2 sheets)",
+            "⬇ Download Excel (4 sheets)",
             data=buf2,
             file_name="region_mapping.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
